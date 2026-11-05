@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from tools import tool_map, tools_schema
+from mcp_client import get_mcp_tools_schema, call_mcp_tool
 
 load_dotenv()
 
@@ -47,14 +48,15 @@ def _trim_history(messages: list) -> None:
 
 def run_agent(user_input: str, messages: list) -> str:
     """输入用户问题，返回最终回答。"""
-    mcp_tools =tools_schema
+    mcp_tools =get_mcp_tools_schema()
+    all_tools_schema = tools_schema + mcp_tools
     messages.append({"role": "user", "content": user_input})
 
     for _ in range(MAX_STEPS):
         resp = client.chat.completions.create(
             model=MODEL,
             messages=messages,
-            tools=tools_schema,
+            tools=all_tools_schema,
         )
         msg = resp.choices[0].message
 
@@ -71,8 +73,8 @@ def run_agent(user_input: str, messages: list) -> str:
             name = tc.function.name
             args = json.loads(tc.function.arguments)
             print(f"  [工具调用] {name}({args})")
-
             func = tool_map.get(name)
+            result = func(**args) if func else call_mcp_tool(name, args)
             result = func(**args) if func else f"未知工具：{name}"
             print(f"  [工具返回] {result}")
 
