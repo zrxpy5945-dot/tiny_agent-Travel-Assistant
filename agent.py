@@ -47,7 +47,7 @@ def _trim_history(messages: list) -> None:
 
 def run_agent(user_input: str, messages: list) -> str:
     """输入用户问题，返回最终回答。"""
-    mcp_tools =tools_schema()
+    mcp_tools =tools_schema
     messages.append({"role": "user", "content": user_input})
 
     for _ in range(MAX_STEPS):
