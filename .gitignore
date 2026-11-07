@@ -13,6 +13,9 @@ venv/
 # 本地记忆（含个人信息，不提交）
 memory.json
 
+# RAG 索引（构建产物，不提交）
+index.json
+
 # PyCharm
 .idea/
 

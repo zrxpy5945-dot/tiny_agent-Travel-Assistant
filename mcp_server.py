@@ -2,6 +2,8 @@
 import requests
 from mcp.server.fastmcp import FastMCP
 
+from rag import search
+
 mcp = FastMCP("TinyAgent Tools")
 
 _GEO_URL = "https://geocoding-api.open-meteo.com/v1/search"
@@ -105,6 +107,24 @@ def get_air_quality(city: str) -> str:
 
     pm25_text = f"{pm25} μg/m³" if pm25 is not None else "暂无数据"
     return f"{name}空气质量：AQI {aqi}（{_aqi_level(aqi)}），PM2.5 {pm25_text}"
+
+
+@mcp.tool()
+def search_travel_guide(query: str) -> str:
+    """
+    在本地旅游知识库中检索资料。
+    当用户问行程怎么安排、有什么好玩、要不要提前预约、能不能带某物品、怎么去某个景点
+    这类需要查资料的问题时调用。实时天气和空气质量不要用这个工具。
+    如果返回"没有找到"，请如实告诉用户你没有这方面资料，不要自己编造。
+    """
+    hits = search(query, top_k=3)
+    if not hits:
+        return "知识库中没有找到相关内容，请如实告诉用户你不确定。"
+
+    parts = []
+    for hit in hits:
+        parts.append(f"【来源：{hit['source']}】\n{hit['text']}")
+    return "\n\n".join(parts)
 
 
 if __name__ == "__main__":
