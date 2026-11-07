@@ -13,7 +13,7 @@ load_dotenv()
 
 client = OpenAI(
     api_key=os.environ.get("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com",
+    base_url="https://api.deepseek.com/v1",
 )
 
 MODEL = "deepseek-flash"
@@ -75,7 +75,6 @@ def run_agent(user_input: str, messages: list) -> str:
             print(f"  [工具调用] {name}({args})")
             func = tool_map.get(name)
             result = func(**args) if func else call_mcp_tool(name, args)
-            result = func(**args) if func else f"未知工具：{name}"
             print(f"  [工具返回] {result}")
 
             messages.append(
