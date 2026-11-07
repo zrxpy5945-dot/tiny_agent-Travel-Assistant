@@ -10,6 +10,9 @@ venv/
 # 环境变量（里面是密钥，绝对不能提交）
 .env
 
+# 本地记忆（含个人信息，不提交）
+memory.json
+
 # PyCharm
 .idea/
 
