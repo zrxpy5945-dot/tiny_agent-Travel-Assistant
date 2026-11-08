@@ -1,4 +1,4 @@
-"""MCP Client 封装 —— mcp v1.30.0 写法"""
+"""MCP Client 封装 """
 import asyncio
 from mcp.client.session import ClientSession
 from mcp.client.stdio import stdio_client, StdioServerParameters

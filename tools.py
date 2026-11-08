@@ -1,4 +1,4 @@
-"""工具定义：真实天气查询，数据源 Open-Meteo（免费、无需 key、国内稳定）。"""
+"""工具定义：真实天气查询，数据源 Open-Meteo"""
 from datetime import datetime
 import requests
 

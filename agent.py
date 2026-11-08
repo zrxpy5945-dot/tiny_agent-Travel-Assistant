@@ -1,4 +1,4 @@
-"""Agent 核心：LLM + 工具 + 循环"""
+"""Agent：LLM + 工具 + 循环"""
 
 import json
 import os

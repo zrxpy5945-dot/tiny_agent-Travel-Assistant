@@ -1,4 +1,4 @@
-"""最简单的 MCP Server —— 给 agent 提供可复用的额外工具"""
+"""简单的 MCP Server —— 给 agent 提供可复用的额外工具"""
 import requests
 from mcp.server.fastmcp import FastMCP
 
