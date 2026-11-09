@@ -16,6 +16,13 @@ INDEX_FILE = BASE_DIR / "index.json"
 
 CHUNK_SIZE = 350  # 每块目标字数
 
+# 城市 -> 该城市专属的知识文档。查询点名了某城市时，只在这些文档里检索，
+# 避免"预约""景点"这类通用词把别的城市的文档也捞出来。
+CITY_DOCS = {
+    "北京": "北京出行常识.md",
+    "成都": "成都周边.md",
+}
+
 
 def load_docs() -> list:
     """读取 knowledge 目录下所有 markdown，返回 [(文件名, 全文)]"""
@@ -88,8 +95,16 @@ def search(query: str, top_k: int = 3) -> list:
     if not q_words or not chunks:
         return []
 
+    # 查询里点名了哪些城市 -> 这些城市对应的专属文档
+    wanted_docs = {doc for city, doc in CITY_DOCS.items() if city in query}
+    city_docs = set(CITY_DOCS.values())
+
     results = []
     for chunk in chunks:
+        source = chunk["source"]
+        # 点名了城市时，跳过其它城市的专属文档；通用文档（如火车票规则）不受限制
+        if wanted_docs and source in city_docs and source not in wanted_docs:
+            continue
         text = chunk["text"]
         score = 0
         for word in q_words:
