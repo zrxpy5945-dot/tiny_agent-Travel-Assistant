@@ -28,7 +28,11 @@ async def _async_call_tool(name: str, arguments: dict) -> str:
 
 # 对外同步接口：列出 MCP 服务器所有工具，并转换为 LLM function calling 格式的 schema
 def get_mcp_tools_schema() -> list[dict]:
-    tools = asyncio.run(_async_list_tools())
+    try:
+        tools = asyncio.run(_async_list_tools())
+    except Exception as e:  # MCP 客户端用 TaskGroup 抛错，ExceptionGroup 也在这里兜住
+        print(f"  [警告] MCP Server 连接失败，本次仅使用本地工具：{e}")
+        return []
     schema_list = []
     for t in tools:
         input_schema = t.inputSchema or {"type": "object", "properties": {}}
@@ -45,4 +49,8 @@ def get_mcp_tools_schema() -> list[dict]:
 
 # 对外同步接口：调用指定 MCP 工具，返回工具执行的文本结果
 def call_mcp_tool(name: str, arguments: dict) -> str:
-    return asyncio.run(_async_call_tool(name, arguments))
+    try:
+        return asyncio.run(_async_call_tool(name, arguments))
+    except Exception as e:
+        # 返回明确的失败文本而不是空串，让模型知道"工具坏了"而不是"没查到"
+        return f"调用工具 {name} 失败：{e}"

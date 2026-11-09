@@ -4,7 +4,7 @@ import json
 import os
 
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import OpenAI, APIError, APIConnectionError, APITimeoutError
 
 from tools import tool_map, tools_schema
 from mcp_client import get_mcp_tools_schema, call_mcp_tool
@@ -14,6 +14,7 @@ load_dotenv()
 client = OpenAI(
     api_key=os.environ.get("DEEPSEEK_API_KEY"),
     base_url="https://api.deepseek.com/v1",
+    timeout=30.0,  # 单次请求最多等 30 秒，避免网络卡死时无限阻塞
 )
 
 MODEL = "deepseek-flash"
@@ -53,11 +54,21 @@ def run_agent(user_input: str, messages: list) -> str:
     messages.append({"role": "user", "content": user_input})
 
     for _ in range(MAX_STEPS):
-        resp = client.chat.completions.create(
-            model=MODEL,
-            messages=messages,
-            tools=all_tools_schema,
-        )
+        try:
+            resp = client.chat.completions.create(
+                model=MODEL,
+                messages=messages,
+                tools=all_tools_schema,
+            )
+        except APITimeoutError:
+            _trim_history(messages)
+            return "请求超时了，网络可能不稳定，请稍后再试。"
+        except APIConnectionError:
+            _trim_history(messages)
+            return "连不上模型服务，请检查网络后重试。"
+        except APIError as e:
+            _trim_history(messages)
+            return f"模型服务出错：{e}"
         msg = resp.choices[0].message
 
         # 没有工具调用，说明模型已给出最终答案，循环结束
