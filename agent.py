@@ -52,6 +52,7 @@ def run_agent(user_input: str, messages: list) -> str:
     mcp_tools =get_mcp_tools_schema()
     all_tools_schema = tools_schema + mcp_tools
     messages.append({"role": "user", "content": user_input})
+    seen_calls = set()  # 已执行过的 (工具名, 参数)，用来识别原地打转
 
     for _ in range(MAX_STEPS):
         try:
@@ -83,9 +84,17 @@ def run_agent(user_input: str, messages: list) -> str:
         for tc in msg.tool_calls:
             name = tc.function.name
             args = json.loads(tc.function.arguments)
-            print(f"  [工具调用] {name}({args})")
-            func = tool_map.get(name)
-            result = func(**args) if func else call_mcp_tool(name, args)
+
+            # 工具名 + 参数唯一确定一次调用；key 排序保证参数顺序不影响判断
+            sig = (name, json.dumps(args, sort_keys=True, ensure_ascii=False))
+            if sig in seen_calls:
+                print(f"  [拦截重复调用] {name}({args})")
+                result = f"（{name} 已用完全相同的参数调用过，结果见上文，请直接回答用户）"
+            else:
+                seen_calls.add(sig)
+                print(f"  [工具调用] {name}({args})")
+                func = tool_map.get(name)
+                result = func(**args) if func else call_mcp_tool(name, args)
             print(f"  [工具返回] {result}")
 
             messages.append(
@@ -96,4 +105,4 @@ def run_agent(user_input: str, messages: list) -> str:
                 }
             )
     _trim_history(messages)
-    return "已达到最大循环次数，任务未完成。"
+    return f"已经尝试 {MAX_STEPS} 轮还没得出结论，建议把问题拆小一点再问。"

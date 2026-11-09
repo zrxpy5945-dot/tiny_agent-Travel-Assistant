@@ -47,10 +47,22 @@ def get_mcp_tools_schema() -> list[dict]:
     return schema_list
 
 
+# 单次 MCP 工具调用最多等 20 秒，防止子进程卡死导致无限阻塞
+TOOL_TIMEOUT = 20
+
+
+async def _call_with_timeout(name: str, arguments: dict) -> str:
+    return await asyncio.wait_for(
+        _async_call_tool(name, arguments), timeout=TOOL_TIMEOUT
+    )
+
+
 # 对外同步接口：调用指定 MCP 工具，返回工具执行的文本结果
 def call_mcp_tool(name: str, arguments: dict) -> str:
     try:
-        return asyncio.run(_async_call_tool(name, arguments))
+        return asyncio.run(_call_with_timeout(name, arguments))
+    except asyncio.TimeoutError:
+        return f"调用工具 {name} 超时（超过 {TOOL_TIMEOUT} 秒），请稍后再试"
     except Exception as e:
         # 返回明确的失败文本而不是空串，让模型知道"工具坏了"而不是"没查到"
         return f"调用工具 {name} 失败：{e}"
