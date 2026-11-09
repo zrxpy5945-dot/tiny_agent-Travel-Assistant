@@ -10,9 +10,10 @@ MAX_FACTS = 20  # 最多保留 20 条，防止无限增长
 _EXTRACT_PROMPT = (
     "从下面这段对话中提取关于用户的、长期有效的信息，例如常住城市、出行偏好、"
     "生活习惯、身体状况。不要提取一次性的问题。\n"
-    "只输出 JSON 数组，每个元素是一句简短的中文描述，例如 "
-    '["用户常住北京", "用户怕冷，冬天需要加厚外套"]。\n'
-    "如果没有值得记住的信息，输出 []。不要输出任何其它文字。\n\n对话：\n"
+    "同时对照【已有记忆】：如果新信息与某条旧记忆冲突（例如用户换了常住城市），"
+    "把那条旧记忆的原文填进 remove；与旧记忆一致或全新的信息填进 add。\n"
+    '只输出 JSON 对象，格式：{"add": ["用户搬到上海"], "remove": ["用户常住北京"]}。\n'
+    "没有新增时 add 为空数组，没有冲突时 remove 为空数组。不要输出任何其它文字。\n\n"
 )
 
 
@@ -39,9 +40,11 @@ def merge_facts(old: list, new: list) -> list:
     return merged[-MAX_FACTS:]
 
 
-def save_memory(facts: list) -> None:
-    """把新事实合并进记忆文件。"""
-    merged = merge_facts(load_memory()["facts"], facts)
+def save_memory(facts: list, remove: list = None) -> None:
+    """把新事实合并进记忆文件，并删除已被取代的旧记忆。"""
+    removed = set(remove or [])
+    old = [f for f in load_memory()["facts"] if f not in removed]
+    merged = merge_facts(old, facts)
     MEMORY_FILE.write_text(
         json.dumps(
             {
@@ -64,8 +67,11 @@ def build_system_prompt(base_prompt: str) -> str:
     return f"{base_prompt}\n\n【已知用户信息，回答时请结合】\n{lines}"
 
 
-def extract_facts(messages: list) -> list:
-    """调用一次 LLM 从对话里抽取长期事实，失败时返回空列表。"""
+def extract_facts(messages: list) -> tuple:
+    """调用一次 LLM 抽取长期事实，并给出需要删除的冲突旧记忆。
+
+    返回 (新增列表, 需删除列表)，失败时返回 ([], [])。
+    """
     from agent import client, MODEL  # 延迟导入，避免循环依赖
 
     dialogue = "\n".join(
@@ -76,25 +82,37 @@ def extract_facts(messages: list) -> list:
         and m.get("content")
     )
     if not dialogue:
-        return []
+        return [], []
+
+    old_facts = load_memory()["facts"]
+    old_text = "\n".join(f"- {f}" for f in old_facts) if old_facts else "（暂无）"
+    prompt = f"{_EXTRACT_PROMPT}【已有记忆】\n{old_text}\n\n对话：\n{dialogue}"
 
     try:
         resp = client.chat.completions.create(
             model=MODEL,
-            messages=[{"role": "user", "content": _EXTRACT_PROMPT + dialogue}],
+            messages=[{"role": "user", "content": prompt}],
             temperature=0,
         )
         raw = (resp.choices[0].message.content or "").strip()
     except Exception as e:  # 抽取失败不能影响正常退出
         print(f"  [记忆抽取失败，已跳过] {e}")
-        return []
+        return [], []
 
     # 模型有时会包一层 ```json 代码块，去掉再解析
     raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
     try:
-        facts = json.loads(raw)
+        data = json.loads(raw)
     except json.JSONDecodeError:
-        return []
-    if not isinstance(facts, list):
-        return []
-    return [str(f).strip() for f in facts if str(f).strip()]
+        return [], []
+    if not isinstance(data, dict):
+        return [], []
+
+    added = data.get("add") or []
+    removed = data.get("remove") or []
+    if not isinstance(added, list) or not isinstance(removed, list):
+        return [], []
+    return (
+        [str(f).strip() for f in added if str(f).strip()],
+        [str(f).strip() for f in removed if str(f).strip()],
+    )

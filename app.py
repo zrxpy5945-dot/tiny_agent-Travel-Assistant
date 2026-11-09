@@ -22,10 +22,12 @@ if facts:
             st.write(f"- {fact}")
 
 if st.button("📌 记住这次对话"):
-    extracted = extract_facts(st.session_state.messages)
-    if extracted:
-        save_memory(extracted)
-        st.success(f"已记住 {len(extracted)} 条信息，刷新页面后生效")
+    added, removed = extract_facts(st.session_state.messages)
+    if added or removed:
+        save_memory(added, removed)
+        st.success(
+            f"已记住 {len(added)} 条信息，清理 {len(removed)} 条过时信息，刷新页面后生效"
+        )
     else:
         st.info("这次对话没有值得记住的新信息")
 
